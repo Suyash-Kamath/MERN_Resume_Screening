@@ -9,14 +9,13 @@ const fs = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 require('dotenv').config();
-
-// PDF processing
-const pdf = require('pdf-parse');
+const { convert } = require("pdf-poppler");
+const pdf = require('pdf-parse'); // PDF processing
 const mammoth = require('mammoth');
 const cheerio = require('cheerio');
-
-// OpenAI
-const OpenAI = require('openai');
+const os = require("os");
+const fsSync = require("fs"); // for sync temp file writing
+const OpenAI = require('openai'); // OpenAI
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -175,8 +174,7 @@ const authenticateToken = async (req, res, next) => {
     return res.status(401).json({ detail: 'Invalid token' });
   }
 };
-const os = require("os");
-const fsSync = require("fs"); // for sync temp file writing
+
 
 /* ---------------- Image OCR ---------------- */
 const extractTextFromImageBuffer = async (buffer, originalFormat = "image") => {
@@ -219,7 +217,7 @@ const extractTextFromImageBuffer = async (buffer, originalFormat = "image") => {
 };
 
 /* ---------------- Scanned PDF → Images → OCR ---------------- */
-const { convert } = require("pdf-poppler");
+
 const extractTextFromScannedPdf = async (filePath) => {
   try {
     const outputDir = path.join(os.tmpdir(), "pdf_ocr_tmp");
