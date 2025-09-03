@@ -175,6 +175,10 @@ const authenticateToken = async (req, res, next) => {
     return res.status(401).json({ detail: 'Invalid token' });
   }
 };
+const os = require("os");
+const fsSync = require("fs"); // for sync temp file writing
+
+/* ---------------- Image OCR ---------------- */
 const extractTextFromImageBuffer = async (buffer, originalFormat = "image") => {
   try {
     console.log(`Starting OCR for ${originalFormat}`);
@@ -189,7 +193,7 @@ const extractTextFromImageBuffer = async (buffer, originalFormat = "image") => {
           content: [
             {
               type: "text",
-              text: "Extract all text from this image/PDF. Return only the raw text, no explanations."
+              text: "Please extract all readable text from this image of a resume. Return only the raw text, no explanations."
             },
             {
               type: "image_url",
@@ -201,8 +205,7 @@ const extractTextFromImageBuffer = async (buffer, originalFormat = "image") => {
       max_tokens: 1000,
       temperature: 0
     });
-
-    const extractedText = response.choices?.[0]?.message?.content?.trim();
+      const extractedText = response.choices?.[0]?.message?.content?.trim();
     if (extractedText) {
       console.log(`✅ OCR extracted ${extractedText.length} characters`);
       return extractedText;
@@ -219,8 +222,8 @@ const extractTextFromImageBuffer = async (buffer, originalFormat = "image") => {
 const { convert } = require("pdf-poppler");
 const extractTextFromScannedPdf = async (filePath) => {
   try {
-    const outputDir = path.join(__dirname, "tmp");
-    fs.mkdirSync(outputDir, { recursive: true });
+    const outputDir = path.join(os.tmpdir(), "pdf_ocr_tmp");
+    fsSync.mkdirSync(outputDir, { recursive: true });
 
     const options = {
       format: "jpeg",
@@ -231,11 +234,11 @@ const extractTextFromScannedPdf = async (filePath) => {
 
     await convert(filePath, options);
 
-    const files = fs.readdirSync(outputDir).filter((f) => f.endsWith(".jpg"));
+    const files = fsSync.readdirSync(outputDir).filter((f) => f.endsWith(".jpg"));
     let text = "";
 
     for (const file of files) {
-      const buffer = fs.readFileSync(path.join(outputDir, file));
+      const buffer = fsSync.readFileSync(path.join(outputDir, file));
       const pageText = await extractTextFromImageBuffer(buffer, "pdf-page");
       text += "\n" + pageText;
     }
@@ -247,29 +250,31 @@ const extractTextFromScannedPdf = async (filePath) => {
   }
 };
 
+
 /* ---------------- PDF Extraction ---------------- */
-const extractTextFromPdf = async (buffer, filePath) => {
+const extractTextFromPdf = async (buffer) => {
+  // Write buffer to a temp file so OCR always works if needed
+  const tempPath = path.join(os.tmpdir(), `${Date.now()}.pdf`);
+  fsSync.writeFileSync(tempPath, buffer);
+
   try {
     const data = await pdf(buffer);
     if (data.text && data.text.trim()) {
       return data.text.trim();
     }
 
-    if (filePath) {
-      console.log("⚠️ PDF has no embedded text → trying OCR via images");
-      return await extractTextFromScannedPdf(filePath);
-    }
-
-    return "❌ PDF appears scanned. Please provide original or DOCX.";
+    console.log("⚠️ PDF has no embedded text → trying OCR via images");
+    return await extractTextFromScannedPdf(tempPath);
   } catch (err) {
     console.error("PDF parse error:", err);
-    if (filePath) {
-      return await extractTextFromScannedPdf(filePath);
-    }
-    return "❌ Failed to process PDF.";
+    return await extractTextFromScannedPdf(tempPath);
+  } finally {
+    // Cleanup temp file
+    fsSync.unlink(tempPath, (err) => {
+      if (err) console.error("Temp file cleanup failed:", err);
+    });
   }
 };
-
 /* ---------------- DOCX Extraction ---------------- */
 const extractTextFromDocx = async (buffer) => {
   try {
