@@ -35,8 +35,7 @@ app.use(cors({
     "http://localhost:4173",
     "http://127.0.0.1:4173",
     "https://final-resume-screening-app.vercel.app",
-    "https://prohire.probusinsurance.com",
-    "https://mern-resume-screening.vercel.app"
+    "https://prohire.probusinsurance.com"
   ],
   credentials: true,
   methods: ["*"],
